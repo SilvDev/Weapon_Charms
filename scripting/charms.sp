@@ -1,6 +1,6 @@
 /*
 *	Weapon Charms
-*	Copyright (C) 2021 Silvers
+*	Copyright (C) 2022 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.16"
+#define PLUGIN_VERSION 		"1.17"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.17 (16-Jul-2022)
+	- L4D1 & L4D2: Fixed charms appearing after using a minigun when the plugin has been turned off.
 
 1.16 (04-Dec-2021)
 	- Changes to fix warnings when compiling on SourceMod 1.11.
@@ -452,12 +455,12 @@ public void OnConfigsExecuted()
 	IsAllowed();
 }
 
-public void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Allow(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	IsAllowed();
 }
 
-public void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
+void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newValue)
 {
 	GetCvars();
 }
@@ -550,7 +553,27 @@ void IsAllowed()
 	{
 		g_bCvarAllow = false;
 		delete g_hTimerDetectView;
+		delete g_hTimerGun;
 
+		// Minigun mount detection
+		if( g_iEngine == Engine_Left4Dead )
+		{
+			int entity = -1;
+			while( (entity = FindEntityByClassname(entity, "prop_minigun")) != INVALID_ENT_REFERENCE )
+				SDKUnhook(entity, SDKHook_UsePost, OnUseMinigun);
+
+			entity = -1;
+			while( (entity = FindEntityByClassname(entity, "prop_mounted_machine_gun")) != INVALID_ENT_REFERENCE )
+				SDKUnhook(entity, SDKHook_UsePost, OnUseMinigun);
+		}
+		else if( g_iEngine == Engine_Left4Dead2 )
+		{
+			int entity = -1;
+			while( (entity = FindEntityByClassname(entity, "prop_minigun_l4d1")) != INVALID_ENT_REFERENCE )
+				SDKUnhook(entity, SDKHook_UsePost, OnUseMinigun);
+		}
+
+		// Events
 		if( g_iEngine == Engine_CSGO )
 		{
 			UnhookEvent("round_officially_ended",	Event_RoundEnd);
@@ -874,7 +897,7 @@ void MySQL_Connect()
 	Database.Connect(OnMySQLConnect, DATABASE_NAME);
 }
 
-public void OnMySQLConnect(Database db, const char[] szError, any data)
+void OnMySQLConnect(Database db, const char[] szError, any data)
 {
 	if( db == null || szError[0] )
 	{
@@ -913,7 +936,7 @@ public void OnMySQLConnect(Database db, const char[] szError, any data)
 	LateLoad();
 }
 
-public void Database_OnConnect(Database db, DBResultSet results, const char[] error, any data)
+void Database_OnConnect(Database db, DBResultSet results, const char[] error, any data)
 {
 	if( results == null )
 	{
@@ -961,7 +984,7 @@ public void OnClientAuthorized(int client, const char[] auth)
 	}
 }
 
-public void Database_OnClientLoadData(Database db, DBResultSet results, const char[] error, any data)
+void Database_OnClientLoadData(Database db, DBResultSet results, const char[] error, any data)
 {
 	if( results != null )
 	{
@@ -1056,7 +1079,7 @@ public void Database_OnClientLoadData(Database db, DBResultSet results, const ch
 	}
 }
 
-public void QueryClientConVarView(QueryCookie cookie, int client, ConVarQueryResult result, const char[] cvarName, const char[] cvarValue)
+void QueryClientConVarView(QueryCookie cookie, int client, ConVarQueryResult result, const char[] cvarName, const char[] cvarValue)
 {
 	if( strcmp(cvarValue, "0") )
 	{
@@ -1155,7 +1178,7 @@ void SavePreferences(int client)
 	g_hDB.Query(Database_OnClientSaveData, szBuffer, GetClientUserId(client));
 }
 
-public void Database_OnClientSaveData(Database db, DBResultSet results, const char[] error, any data)
+void Database_OnClientSaveData(Database db, DBResultSet results, const char[] error, any data)
 {
 	if( results == null )
 	{
@@ -1401,12 +1424,12 @@ void SaveConfig(KeyValues kvFile)
 // ====================================================================================================
 //					EVENTS
 // ====================================================================================================
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	OnMapEnd();
 }
 
-public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client )
@@ -1417,7 +1440,7 @@ public void Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast
 	}
 }
 
-public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client && (g_bCvarBots || !IsFakeClient(client)) )
@@ -1434,7 +1457,7 @@ public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
 	}
 }
 
-public Action TimerSpawn(Handle timer, any client)
+Action TimerSpawn(Handle timer, any client)
 {
 	client = GetClientOfUserId(client);
 	if( client && IsClientInGame(client) && IsPlayerAlive(client) )
@@ -1461,7 +1484,7 @@ public Action TimerSpawn(Handle timer, any client)
 }
 
 // Block charms while zooming down the scope
-public void Event_Zoom(Event event, const char[] name, bool dontBroadcast)
+void Event_Zoom(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client > 0 )
@@ -1511,7 +1534,7 @@ public void OnEntityCreated(int entity, const char[] classname)
 	}
 }
 
-public Action OnUseMinigun(int weapon, int client, int caller, UseType type, float value)
+Action OnUseMinigun(int weapon, int client, int caller, UseType type, float value)
 {
 	// Detect actually when mounting, and verify mounted (otherwise they're just pressing E whilst looking at MG but not actually mounting)
 	if( client && type == Use_Toggle && GetEntProp(client, Prop_Send, "m_usingMountedWeapon") )
@@ -1540,7 +1563,7 @@ public Action OnUseMinigun(int weapon, int client, int caller, UseType type, flo
 }
 
 // L4D2: Block charms while using miniguns.
-public void Event_Block2(Event event, const char[] name, bool dontBroadcast)
+void Event_Block2(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	g_bMountedGun[client] = true;
@@ -1563,7 +1586,7 @@ public void Event_Block2(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public Action TimerCheck(Handle timer)
+Action TimerCheck(Handle timer)
 {
 	// Need to check for dismount after event (L4D2) / OnUse (L4D1) triggers
 	int count;
@@ -1598,7 +1621,7 @@ public Action TimerCheck(Handle timer)
 }
 
 // Block charms while pinned.
-public void Event_BlockStart(Event event, const char[] name, bool dontBroadcast)
+void Event_BlockStart(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("victim"));
 	if( client > 0 )
@@ -1608,7 +1631,7 @@ public void Event_BlockStart(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public void Event_BlockEnd(Event event, const char[] name, bool dontBroadcast)
+void Event_BlockEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("victim"));
 	if( client > 0 )
@@ -1624,14 +1647,14 @@ public void Event_BlockEnd(Event event, const char[] name, bool dontBroadcast)
 }
 
 // Block charms while incapped/ledge hanging.
-public void Event_Block(Event event, const char[] name, bool dontBroadcast)
+void Event_Block(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	g_fSpawned[client] = 99999.9;
 	DeleteCharm(client);
 }
 
-public void Event_Unlock(Event event, const char[] name, bool dontBroadcast)
+void Event_Unlock(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	g_fSpawned[client] = 1.0;
@@ -1643,7 +1666,7 @@ public void Event_Unlock(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-public void Event_Unlock2(Event event, const char[] name, bool dontBroadcast)
+void Event_Unlock2(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("subject"));
 	g_fSpawned[client] = 1.0;
@@ -1656,7 +1679,7 @@ public void Event_Unlock2(Event event, const char[] name, bool dontBroadcast)
 }
 
 // When the intro cut scene finishes the viewmodel is shown again, prevent that if charm equipped
-public void Event_Instructor(Event event, const char[] name, bool dontBroadcast)
+void Event_Instructor(Event event, const char[] name, bool dontBroadcast)
 {
 	for( int i = 1; i <= MaxClients; i++ )
 	{
@@ -1669,7 +1692,7 @@ public void Event_Instructor(Event event, const char[] name, bool dontBroadcast)
 }
 
 // Need to set bots "m_bDrawViewmodel" to 1 when they replace a player with active Charm, otherwise "m_bDrawViewmodel" stays on 0 when players replace the bot and will have no viewmodel showing.
-public void Event_BotReplace(Event event, const char[] name, bool dontBroadcast)
+void Event_BotReplace(Event event, const char[] name, bool dontBroadcast)
 {
 	int bot = GetClientOfUserId(event.GetInt("bot"));
 	if( bot )
@@ -1679,7 +1702,7 @@ public void Event_BotReplace(Event event, const char[] name, bool dontBroadcast)
 }
 
 // Fix L4D/2 picking up second pistol, change fake VM to dual pistol model.
-public void Event_PlayerUse(Event event, const char[] name, bool dontBroadcast)
+void Event_PlayerUse(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	if( client )
@@ -1690,13 +1713,13 @@ public void Event_PlayerUse(Event event, const char[] name, bool dontBroadcast)
 			int entity = event.GetInt("targetid"); // What we're attempting to use/pickup
 			if( entity && IsValidEntity(entity) )
 			{
-				GetEdictClassname(entity, g_szBuffer, sizeof(g_szBuffer)); // Verify it's a pistol
+				GetEntityClassname(entity, g_szBuffer, sizeof(g_szBuffer)); // Verify it's a pistol
 				if( strncmp(g_szBuffer, "weapon_pistol", 13) == 0 )
 				{
 					entity = GetEntPropEnt(client, Prop_Data, "m_hActiveWeapon");
 					if( GetEntProp(entity, Prop_Send, "m_isDualWielding") ) // Are we dual wielding
 					{
-						GetEdictClassname(entity, g_szBuffer, sizeof(g_szBuffer)); // Is our pistol equipped
+						GetEntityClassname(entity, g_szBuffer, sizeof(g_szBuffer)); // Is our pistol equipped
 						if( strcmp(g_szBuffer, "weapon_pistol") == 0 )
 						{
 							if( g_iEntBones[client] && EntRefToEntIndex(g_iEntBones[client]) != INVALID_ENT_REFERENCE ) // Do we have fake viewmodel
@@ -1749,7 +1772,7 @@ bool ValidateCommand(int client)
 // ====================================================================================================
 //					COMMAND: SAVE DATA
 // ====================================================================================================
-public Action CmdSave(int client, int args)
+Action CmdSave(int client, int args)
 {
 	KeyValues kvFile = OpenConfig();
 	SaveConfig(kvFile);
@@ -1779,7 +1802,7 @@ void SaveData(int client)
 	StringMap smWepsData = charmTemp.smArrayWeapons;
 
 	// Classname test
-	GetEdictClassname(weapon, g_szBuffer, sizeof(g_szBuffer));
+	GetEntityClassname(weapon, g_szBuffer, sizeof(g_szBuffer));
 
 	if( smWepsData.GetArray(g_szBuffer, wepsData, sizeof(wepsData)) == false )
 	{
@@ -1863,7 +1886,7 @@ void SaveData(int client)
 // ====================================================================================================
 //					COMMAND: RELOAD
 // ====================================================================================================
-public Action CmdReload(int client, int args)
+Action CmdReload(int client, int args)
 {
 	float fTime = GetEngineTime();
 
@@ -1883,7 +1906,7 @@ public Action CmdReload(int client, int args)
 // ====================================================================================================
 //					MENU: WEAPONS
 // ====================================================================================================
-public Action CmdCharms(int client, int args)
+Action CmdCharms(int client, int args)
 {
 	ShowWeaponMenu(client);
 	return Plugin_Handled;
@@ -1899,7 +1922,7 @@ void ShowWeaponMenu(int client, int menupos = 0)
 	g_hWeaponsMenu.DisplayAt(client, menupos, MENU_TIME_FOREVER);
 }
 
-public int WeaponMenuHandler(Menu menu, MenuAction action, int client, int index)
+int WeaponMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_Select )
 	{
@@ -1919,7 +1942,7 @@ public int WeaponMenuHandler(Menu menu, MenuAction action, int client, int index
 // ====================================================================================================
 //					MENU: CHARM
 // ====================================================================================================
-public Action CmdCharm(int client, int args)
+Action CmdCharm(int client, int args)
 {
 	g_iWeaponsMenu[client] = 0;
 	g_iEditing[client] = 0;
@@ -1979,7 +2002,7 @@ void ShowCharmMenu(int client, int menupos = 0)
 		int weapon = GetEntPropEnt(client, Prop_Data, "m_hActiveWeapon");
 		if( weapon != -1 )
 		{
-			GetEdictClassname(weapon, classname, sizeof(classname));
+			GetEntityClassname(weapon, classname, sizeof(classname));
 		}
 	}
 
@@ -2026,7 +2049,7 @@ void ShowCharmMenu(int client, int menupos = 0)
 	menu.DisplayAt(client, menupos, MENU_TIME_FOREVER);
 }
 
-public int CharmMenuHandler(Menu menu, MenuAction action, int client, int index)
+int CharmMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_End )
 	{
@@ -2134,7 +2157,7 @@ public int CharmMenuHandler(Menu menu, MenuAction action, int client, int index)
 // ====================================================================================================
 //					MENU: EDIT
 // ====================================================================================================
-public Action CmdEdit(int client, int args)
+Action CmdEdit(int client, int args)
 {
 	if( ValidateCommand(client) == false )
 		return Plugin_Handled;
@@ -2175,7 +2198,7 @@ void ShowEditMenu(int client)
 	menu.Display(client, MENU_TIME_FOREVER);
 }
 
-public int EditMenuHandler(Menu menu, MenuAction action, int client, int index)
+int EditMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_End )
 	{
@@ -2205,7 +2228,7 @@ public int EditMenuHandler(Menu menu, MenuAction action, int client, int index)
 // ====================================================================================================
 //					MENU: ANG
 // ====================================================================================================
-public Action CmdAng(int client, int args)
+Action CmdAng(int client, int args)
 {
 	if( ValidateCommand(client) == false )
 		return Plugin_Handled;
@@ -2248,7 +2271,7 @@ void ShowAngMenu(int client)
 	menu.Display(client, MENU_TIME_FOREVER);
 }
 
-public int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
+int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_End )
 	{
@@ -2304,7 +2327,7 @@ public int AngMenuHandler(Menu menu, MenuAction action, int client, int index)
 // ====================================================================================================
 //					MENU: POS
 // ====================================================================================================
-public Action CmdPos(int client, int args)
+Action CmdPos(int client, int args)
 {
 	if( ValidateCommand(client) == false )
 		return Plugin_Handled;
@@ -2348,7 +2371,7 @@ void ShowPosMenu(int client)
 	menu.Display(client, MENU_TIME_FOREVER);
 }
 
-public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
+int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_End )
 	{
@@ -2418,7 +2441,7 @@ public int PosMenuHandler(Menu menu, MenuAction action, int client, int index)
 // ====================================================================================================
 //					MENU: SIZE
 // ====================================================================================================
-public Action CmdSize(int client, int args)
+Action CmdSize(int client, int args)
 {
 	if( ValidateCommand(client) == false )
 		return Plugin_Handled;
@@ -2467,7 +2490,7 @@ void ShowSizeMenu(int client)
 	menu.Display(client, MENU_TIME_FOREVER);
 }
 
-public int SizeMenuHandler(Menu menu, MenuAction action, int client, int index)
+int SizeMenuHandler(Menu menu, MenuAction action, int client, int index)
 {
 	if( action == MenuAction_End )
 	{
@@ -2556,7 +2579,7 @@ void CreateCharm(int client, int index, bool manual = false)
 }
 
 void DelayCreate(DataPack hPack)
-// public Action DelayCreate(Handle timer, DataPack hPack)
+// Action DelayCreate(Handle timer, DataPack hPack)
 {
 	hPack.Reset();
 	int client = hPack.ReadCell();
@@ -2627,7 +2650,7 @@ void DelayCreate(DataPack hPack)
 	// =========================
 	static char classname[MAX_LENGTH_CLASS];
 	static char modelname[MAX_LENGTH_MODEL];
-	GetEdictClassname(weapon, classname, sizeof(classname));
+	GetEntityClassname(weapon, classname, sizeof(classname));
 
 	if( smWepsData.GetArray(classname, wepsData, sizeof(wepsData)) == false )
 	{
@@ -2806,7 +2829,7 @@ void DelayCreate(DataPack hPack)
 
 		if( g_iEngine == Engine_CSGO )
 		{
-			GetEdictClassname(weapon, g_szBuffer, sizeof(g_szBuffer));
+			GetEntityClassname(weapon, g_szBuffer, sizeof(g_szBuffer));
 
 			int dupe = CreateEntityByName(g_szBuffer);
 
@@ -3045,7 +3068,7 @@ public void Attachments_OnWeaponSwitch(int client, int weapon, int ent_views, in
 	}
 }
 
-public Action Timer_DelayCreate(Handle timer, DataPack dPack)
+Action Timer_DelayCreate(Handle timer, DataPack dPack)
 {
 	dPack.Reset();
 
@@ -3452,7 +3475,7 @@ bool IsSurvivorThirdPerson(int iClient)
 	return false;
 }
 
-public Action TimerDetectView(Handle timer)
+Action TimerDetectView(Handle timer)
 {
 	for( int i = 1; i <= MaxClients; i++ )
 	{
@@ -3515,12 +3538,14 @@ void SetCharmView(int client, bool bIsThirdPerson)
 	}
 }
 
-public Action Block(int entity, int client)
+/*
+Action Block(int entity, int client)
 {
 	return Plugin_Handled;
 }
+// */
 
-public Action Hook_SetTransmitViews(int entity, int client)
+Action Hook_SetTransmitViews(int entity, int client)
 {
 	// Block view OR entity does not belong to client
 	entity = EntIndexToEntRef(entity);
@@ -3535,7 +3560,7 @@ public Action Hook_SetTransmitViews(int entity, int client)
 	return Plugin_Continue;
 }
 
-public Action Hook_SetTransmitWorld(int entity, int client)
+Action Hook_SetTransmitWorld(int entity, int client)
 {
 	if( !g_bExternalView[client] && EntIndexToEntRef(entity) == g_iEntSaved[client][INDEX_WORLD] )
 		return Plugin_Handled;
@@ -3588,7 +3613,7 @@ int GetCharmFromClassname(int client, int &weapon = 0)
 		if( weapon != -1 )
 		{
 			int index;
-			GetEdictClassname(weapon, g_szBuffer, sizeof(g_szBuffer));
+			GetEntityClassname(weapon, g_szBuffer, sizeof(g_szBuffer));
 			if( g_smSelected[client].GetValue(g_szBuffer, index) )
 			{
 				if( g_iEngine == Engine_CSGO )
@@ -3606,7 +3631,7 @@ int GetCharmFromClassname(int client, int &weapon = 0)
 		weapon = GetEntPropEnt(client, Prop_Data, "m_hActiveWeapon");
 		if( weapon != -1 )
 		{
-			GetEdictClassname(weapon, g_szBuffer, sizeof(g_szBuffer));
+			GetEntityClassname(weapon, g_szBuffer, sizeof(g_szBuffer));
 
 			int len = g_aArrayList.Length;
 			ArrayList alRandom = new ArrayList();
@@ -3655,7 +3680,7 @@ bool IsValidEntRef(int entity)
 // ====================================================================================================
 //					NATIVES
 // ====================================================================================================
-public int Native_CharmCreate(Handle plugin, int numParams)
+int Native_CharmCreate(Handle plugin, int numParams)
 {
 	int client = GetNativeCell(1);
 	int index = GetNativeCell(2);
@@ -3668,7 +3693,7 @@ public int Native_CharmCreate(Handle plugin, int numParams)
 	return 0;
 }
 
-public int Native_CharmDelete(Handle plugin, int numParams)
+int Native_CharmDelete(Handle plugin, int numParams)
 {
 	int client = GetNativeCell(1);
 	DeleteCharm(client);
@@ -3676,13 +3701,13 @@ public int Native_CharmDelete(Handle plugin, int numParams)
 	return 0;
 }
 
-public int Native_GetIndex(Handle plugin, int numParams)
+int Native_GetIndex(Handle plugin, int numParams)
 {
 	int client = GetNativeCell(1);
 	return g_iSelected[client];
 }
 
-public int Native_GetValid(Handle plugin, int numParams)
+int Native_GetValid(Handle plugin, int numParams)
 {
 	int client = GetNativeCell(1);
 	return IsValidEntRef(g_iEntSaved[client][INDEX_VIEWS]);
