@@ -1,6 +1,6 @@
 /*
 *	Weapon Charms
-*	Copyright (C) 2022 Silvers
+*	Copyright (C) 2023 Silvers
 *
 *	This program is free software: you can redistribute it and/or modify
 *	it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.17"
+#define PLUGIN_VERSION 		"1.18"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.18 (05-Sep-2023)
+	- No longer shows the charm of the player you're spectating.
 
 1.17 (16-Jul-2022)
 	- L4D1 & L4D2: Fixed charms appearing after using a minigun when the plugin has been turned off.
@@ -761,19 +764,19 @@ public void OnMapStart()
 		int bytes;
 
 		// Create custom dirs
-		Format(sDir, sizeof(sDir), "models");
+		sDir = "models";
 		if( DirExists(sDir) == false )
 			CreateDirectory(sDir, 511);
 
-		Format(sDir, sizeof(sDir), "models/weapons");
+		sDir = "models/weapons";
 		if( DirExists(sDir) == false )
 			CreateDirectory(sDir, 511);
 
-		Format(sDir, sizeof(sDir), "models/weapons/silvershot");
+		sDir = "models/weapons/silvershot";
 		if( DirExists(sDir) == false )
 			CreateDirectory(sDir, 511);
 
-		Format(sDir, sizeof(sDir), "models/weapons/silvershot/viewmodels");
+		sDir = "models/weapons/silvershot/viewmodels";
 		if( DirExists(sDir) == false )
 			CreateDirectory(sDir, 511);
 
@@ -998,7 +1001,6 @@ void Database_OnClientLoadData(Database db, DBResultSet results, const char[] er
 				results.FetchRow();
 				results.FetchString(0, szBuffer, sizeof(szBuffer));
 
-				
 				if( g_bCvarDefault && szBuffer[0] == 0 )
 				{
 					strcopy(szBuffer, sizeof(szBuffer), g_sDefaultCharms);
@@ -1026,7 +1028,7 @@ void Database_OnClientLoadData(Database db, DBResultSet results, const char[] er
 					last += pos;
 					pos = StrContains(sVal, ":"); // CSWeaponID:CharmID
 					if (pos == -1)
-						break; //or return;  
+						break; //or return;
 
 					sVal[pos] = 0;
 
@@ -1457,7 +1459,7 @@ void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 	}
 }
 
-Action TimerSpawn(Handle timer, any client)
+Action TimerSpawn(Handle timer, int client)
 {
 	client = GetClientOfUserId(client);
 	if( client && IsClientInGame(client) && IsPlayerAlive(client) )
@@ -2947,7 +2949,6 @@ void DelayCreate(DataPack hPack)
 	// Prevent blocking +USE LoS. Thanks to "Lux".
 	SetEntProp(bone, Prop_Data, "m_iEFlags", GetEntProp(bone, Prop_Data, "m_iEFlags") | EFL_DONTBLOCKLOS | SF_PHYSPROP_PREVENT_PICKUP);
 	SetEntProp(bone, Prop_Send, "m_nSolidType", 6, 1);
-
 	SetEntProp(bone, Prop_Data, "m_nSkin", GetEntProp(weapon, Prop_Data, "m_nSkin"));
 
 	// if( wepsData.boneMerge )
@@ -3562,7 +3563,7 @@ Action Hook_SetTransmitViews(int entity, int client)
 
 Action Hook_SetTransmitWorld(int entity, int client)
 {
-	if( !g_bExternalView[client] && EntIndexToEntRef(entity) == g_iEntSaved[client][INDEX_WORLD] )
+	if( (!g_bExternalView[client] && EntIndexToEntRef(entity) == g_iEntSaved[client][INDEX_WORLD]) || GetEntPropEnt(client, Prop_Send, "m_hObserverTarget") != -1 )
 		return Plugin_Handled;
 	return Plugin_Continue;
 }
@@ -3576,7 +3577,7 @@ Action Hook_SetTransmitWorld(int entity, int client)
 /*
 *	Recreated "SetAttached" entity input from "prop_dynamic_ornament"
 */
-stock void SetAttached(int iEntToAttach, int iEntToAttachTo)
+void SetAttached(int iEntToAttach, int iEntToAttachTo)
 {
 	SetVariantString("!activator");
 	AcceptEntityInput(iEntToAttach, "SetParent", iEntToAttachTo);
