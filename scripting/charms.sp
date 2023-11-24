@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.18"
+#define PLUGIN_VERSION 		"1.19"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+1.19 (24-Nov-2023)
+	- L4D2: Fixed the weapon being hidden after staggering when the stagger timer didn't reset (due to some plugins such as "Stagger Gravity").
 
 1.18 (05-Sep-2023)
 	- No longer shows the charm of the player you're spectating.
@@ -3334,7 +3337,7 @@ bool IsSurvivorThirdPerson(int iClient)
 	if( GetEntPropEnt(iClient, Prop_Send, "m_pounceAttacker") > 0 )					return true;
 	if( GetEntProp(iClient, Prop_Send, "m_isHangingFromLedge", 1) > 0 )				return true;
 	if( GetEntPropEnt(iClient, Prop_Send, "m_reviveTarget") > 0 )					return true;
-	if( GetEntPropFloat(iClient, Prop_Send, "m_staggerTimer", 1) > -1.0 )			return true;
+	if( GetEntPropFloat(iClient, Prop_Send, "m_staggerTimer", 1) > GetGameTime() )	return true;
 
 	if( g_iEngine == Engine_Left4Dead2 )
 	{
